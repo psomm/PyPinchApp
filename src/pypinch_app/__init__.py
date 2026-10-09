@@ -1,0 +1,1 @@
+"""PyPinch analysis application."""

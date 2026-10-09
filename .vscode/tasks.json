@@ -1,0 +1,70 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "cwd": "${workspaceFolder}",
+    "env": { "UV_CACHE_DIR": "${workspaceFolder}/.uv-cache" }
+  },
+  "tasks": [
+    {
+      "label": "PyPinch: Web-Vorschau",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "flet", "run", "--web", "--recursive", "--ignore-dirs", ".flet,__pycache__", "--port", "8550", "src/main.py"],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "PyPinch: Desktop-Vorschau",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "flet", "run", "--recursive", "--ignore-dirs", ".flet,__pycache__", "src/main.py"],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "PyPinch: Android-Vorschau",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "flet", "run", "--android", "--recursive", "--ignore-dirs", ".flet,__pycache__", "--port", "8551", "src/main.py"],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "PyPinch: Tests",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "pytest", "-q"],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "PyPinch: Lint",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "ruff", "check", "src", "tests", "scripts"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "PyPinch: Web-Build",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "flet", "build", "web", "--yes", "--no-rich-output", "--base-url", "/", "--route-url-strategy", "hash"],
+      "problemMatcher": []
+    },
+    {
+      "label": "PyPinch: Android-APK",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "flet", "build", "apk", "--yes", "--no-rich-output"],
+      "problemMatcher": []
+    },
+    {
+      "label": "PyPinch: Android-AAB",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "flet", "build", "aab", "--yes", "--no-rich-output"],
+      "problemMatcher": []
+    }
+  ]
+}

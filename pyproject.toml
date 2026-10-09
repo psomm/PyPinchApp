@@ -1,0 +1,53 @@
+[project]
+name = "pinch-app"
+version = "0.1.0"
+description = "Lokale Pinch-Analyse für Prozessströme auf Web, Desktop und Android"
+readme = "README.md"
+license = "GPL-3.0-only"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "flet==1.0.1",
+    "flet-charts==1.0.1",
+]
+
+[dependency-groups]
+dev = [
+    "flet[all]==1.0.1",
+    "matplotlib>=3.8,<4",
+    "pillow>=11,<13",
+    "pytest>=9.0.3,<10",
+    "ruff>=0.13,<1",
+]
+
+[tool.uv]
+# Flet depends on oauthlib; versions before 4.0.0 have CVE-2026-49265.
+constraint-dependencies = ["oauthlib>=4,<5"]
+
+[tool.flet.app]
+path = "src"
+module = "main"
+exclude = [".flet", "__pycache__"]
+
+[tool.flet]
+product = "PyPinch"
+description = "Lokale Pinch-Analyse für Prozessströme"
+icon_background = "#e0f2f1"
+
+[tool.flet.web]
+route_url_strategy = "hash"
+pwa_background_color = "#f1f5f9"
+pwa_theme_color = "#0d9488"
+
+[tool.flet.android]
+# Replace this provisional ID with an owned, permanent ID before publishing.
+bundle_id = "com.example.pypinch"
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

@@ -1,0 +1,5 @@
+PyPinch enthält Berechnungen, die aus PyPinch von Andrei Leonard Nicusan
+abgeleitet wurden: https://github.com/anicusan/PyPinch
+Referenz-Commit: 2869059af580158c1c50f88c431477fdb62685c5
+Original-Dateikopf: License: GNU v3.0
+Vollständiger Lizenztext: LICENSE.txt
