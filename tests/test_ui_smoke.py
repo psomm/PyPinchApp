@@ -117,8 +117,8 @@ def test_resize_updates_editor_at_both_layout_breakpoints():
     for width, expected_field_width, mobile in (
         (800, None, False),
         (390, None, True),
-        (800, None, False),
-        (1100, 140, False),
+        (1100, None, False),
+        (1300, 344, False),  # Direct CP spans the ṁ, c_p and CP columns.
     ):
         page.width = width
         page.on_resize(None)
@@ -130,6 +130,32 @@ def test_resize_updates_editor_at_both_layout_breakpoints():
         ]
         assert fields[0].width == expected_field_width
         assert (page.navigation_bar is not None) == mobile
+
+
+def test_milk_example_shows_article_values_on_both_layouts():
+    for width in (390, 1300):
+        page = FakePage()
+        page.width = width
+        main(page)
+        find_button(page, "Beispiel Milch").on_click(None)
+        keys = {c.key for root in page.controls for c in walk(root) if isinstance(c, ft.TextField)}
+        assert {"stream-1-mass_flow", "stream-1-specific_heat"} <= keys
+        texts = [
+            c.value or ""
+            for root in page.controls
+            for c in walk(root)
+            if isinstance(c, ft.Text) and isinstance(c.value, str)
+        ]
+        assert "8 kW/°C" in texts and "640 kW" in texts and "720 kW" in texts
+        find_button(page, "Analyse starten").on_click(None)
+        texts = [
+            c.value or ""
+            for root in page.controls
+            for c in walk(root)
+            if isinstance(c, ft.Text) and isinstance(c.value, str)
+        ]
+        assert "160 kW" in texts  # QH,min at ΔTmin = 20 K
+        assert "480 kW" in texts  # heat recovery
 
 
 def test_charts_construct_for_tiny_heat_flows_and_extreme_temperatures():

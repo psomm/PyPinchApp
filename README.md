@@ -9,7 +9,9 @@ Die Anwendung bietet manuelle Stromeingabe, bearbeitbaren CSV-Import,
 Validierung, QH,min und QC,min, Pinch-Temperaturen, Problem Table,
 Wärmekaskaden, Composite Curves, Grand Composite Curve und CSV-Exporte.
 Temperaturen sind in °C, Wärmekapazitätsströme CP in kW/°C und Wärmeströme
-in kW angegeben. Der angezeigte Hot-/Cold-Pinch ist vom verschobenen
+in kW angegeben. Je Strom werden Medium, Massenstrom ṁ und spezifische
+Wärmekapazität c_p eingegeben; CP wird daraus berechnet. Alternativ lässt sich
+CP direkt eingeben. Der angezeigte Hot-/Cold-Pinch ist vom verschobenen
 Legacy-Wert unterschieden.
 
 ![Mobile Ergebnisübersicht des lokalen Entwicklungsstands](docs/images/mobile-overview.png)
@@ -59,6 +61,58 @@ In VS Code stehen die gleichen Befehle unter **Terminal → Aufgabe ausführen**
 in `.vscode/tasks.json` bereit. Für Python-Debugging die `.venv` als
 Interpreter wählen und „PyPinch: Desktop debuggen“ starten.
 
+## Massenstrom, c_p und Enthalpie
+
+Für einen Strom ohne Phasenwechsel und mit konstantem c_p gilt
+
+```text
+CP = ṁ · c_p                          kg/s · kJ/(kg·K) = kW/K = kW/°C
+ΔḢ = Q̇ = ṁ · c_p · (T_target − T_supply) = CP · ΔT     in kW
+```
+
+Die Enthalpieänderung des Stroms ist also der übertragene Wärmestrom. Kalte
+Ströme nehmen ihn auf (ΔḢ > 0), heiße geben ihn ab (ΔḢ < 0). Auf der H-Achse
+der Composite Curves wird ΔḢ aufgetragen, die Steigung eines Abschnitts ist 1/CP.
+Ein Phasenwechsel (CP → ∞, waagerechter Abschnitt) ist mit konstantem c_p nicht
+abbildbar und muss als eigener Strom mit sehr großem CP genähert werden.
+
+Die Auswahl des Mediums füllt einen c_p-Richtwert vor. Der Wert bleibt editierbar,
+weil c_p von Temperatur, Druck und Zusammensetzung abhängt:
+
+| Medium | c_p in kJ/(kg·K) | Gültigkeit |
+|---|---|---|
+| Wasser | 4,19 | flüssig, 20–100 °C |
+| Milch | 3,93 | Vollmilch, flüssig |
+| Glykol-Wasser 30 % | 3,70 | Ethylenglykol, 20 °C |
+| Thermoöl | 2,20 | Mineralöl, 100–250 °C |
+| Wasserdampf | 2,03 | überhitzt, ~1 bar |
+| Luft | 1,006 | trocken, ~1 bar |
+| Rauchgas | 1,10 | Erdgasfeuerung |
+
+„Benutzerdefiniert“ verlangt ein eigenes c_p, „CP direkt“ nimmt CP ohne ṁ entgegen.
+Die Richtwerte stehen in `src/pypinch_app/core/media.py`.
+
+### Validierung: Milchpasteurisation
+
+„Beispiel Milch“ lädt das Beispiel aus dem TLK-Energy-Artikel
+[Pinch-Analyse](https://tlk-energy.de/blog/pinch-analyse). Rohmilch wird von
+15 °C auf 95 °C erhitzt und danach auf 5 °C gekühlt, mit ṁ = 2 kg/s und
+c_p = 4 kJ/(kg·K) wie im Artikel (statt des Richtwerts 3,93).
+
+| Größe | Artikel | App |
+|---|---|---|
+| CP beider Ströme | 8 kW/K | 8 kW/°C |
+| Heizbedarf ohne Wärmerückgewinnung | 640 kW | 640 kW |
+| Kühlbedarf ohne Wärmerückgewinnung | 720 kW | 720 kW |
+| Wärmerückgewinnung bei ΔTmin = 0 K | 640 kW | 640 kW |
+| Kältebedarf bei ΔTmin = 0 K | 80 kW | 80 kW (QH,min = 0) |
+| ΔTmin = 20 K (Kurven um 20 K verschoben) | keine Zahlen | QH,min 160 kW, QC,min 240 kW, 480 kW zurückgewonnen |
+
+Weil beide CP gleich sind, ist der Abstand über den ganzen Austauschbereich
+20 K. Es gibt einen Pinch-Bereich statt eines Pinch-Punkts. Die App meldet
+einen Punkt dieses Bereichs als Pinch (bei ΔTmin = 20 K: 95 / 75 °C). Die Werte sichert
+`tests/test_milk_example.py` ab.
+
 ## CSV-Format
 
 Der Import akzeptiert UTF-8, optional mit BOM, und das Format des
@@ -79,6 +133,20 @@ Supply > Target ergibt einen heißen, Supply < Target einen kalten Stream.
 Mindestens zwei Streams, CP > 0, endliche Zahlen, verschiedene Supply- und
 Target-Temperaturen sowie ΔTmin ≥ 0 sind erforderlich. Importierte Streams
 erscheinen im normalen Editor und können geändert werden.
+
+Alternativ sind Massenstrom und c_p möglich (`tests/fixtures/milk.csv`):
+
+```csv
+Tmin,20
+MEDIUM,MDOT,CPSPEC,TSUPPLY,TTARGET
+Milch,2,4,15,95
+Milch,2,4,95,5
+```
+
+`MDOT` ist in kg/s, `CPSPEC` in kJ/(kg·K). `MEDIUM` akzeptiert die Namen aus
+der Tabelle oben oder deren Schlüssel (z. B. `water`). Bei leerem `CPSPEC`
+wird der Richtwert des Mediums verwendet. `MEDIUM` oder `CPSPEC` darf als
+Spalte fehlen, aber nicht beide.
 
 ## Tests und Qualität
 

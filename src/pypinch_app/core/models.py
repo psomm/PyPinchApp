@@ -14,9 +14,41 @@ class StreamType(StrEnum):
 
 @dataclass(frozen=True)
 class ProcessStream:
+    """CP is the heat capacity flow rate ṁ·c_p; 1 kg/s · 1 kJ/(kg·K) = 1 kW/°C.
+
+    Mass flow, specific heat capacity, and medium are optional provenance of CP.
+    The solver only uses CP, so legacy CP-only streams behave unchanged.
+    """
+
     cp_kw_per_c: float
     supply_c: float
     target_c: float
+    mass_flow_kg_s: float | None = None
+    specific_heat_kj_per_kg_k: float | None = None
+    medium: str | None = None
+
+    @classmethod
+    def from_mass_flow(
+        cls,
+        mass_flow_kg_s: float,
+        specific_heat_kj_per_kg_k: float,
+        supply_c: float,
+        target_c: float,
+        medium: str | None = None,
+    ) -> ProcessStream:
+        return cls(
+            mass_flow_kg_s * specific_heat_kj_per_kg_k,
+            supply_c,
+            target_c,
+            mass_flow_kg_s,
+            specific_heat_kj_per_kg_k,
+            medium,
+        )
+
+    @property
+    def heat_flow_kw(self) -> float:
+        """Enthalpy flow change |ΔḢ| = ṁ·c_p·|ΔT| = CP·|ΔT| (constant c_p, no phase change)."""
+        return self.cp_kw_per_c * abs(self.target_c - self.supply_c)
 
     @property
     def stream_type(self) -> StreamType | None:
@@ -87,6 +119,29 @@ class PinchResult:
     shifted_composite: CompositeCurves
     composite: CompositeCurves
     grand_composite: tuple[CurvePoint, ...]
+
+    @property
+    def hot_duty_kw(self) -> float:
+        """Heat released by all hot streams; cold utility without heat recovery."""
+        return sum(
+            item.stream.heat_flow_kw
+            for item in self.streams
+            if item.stream.stream_type is StreamType.HOT
+        )
+
+    @property
+    def cold_duty_kw(self) -> float:
+        """Heat absorbed by all cold streams; hot utility without heat recovery."""
+        return sum(
+            item.stream.heat_flow_kw
+            for item in self.streams
+            if item.stream.stream_type is StreamType.COLD
+        )
+
+    @property
+    def heat_recovery_kw(self) -> float:
+        """Maximum internal heat exchange at ΔTmin."""
+        return self.cold_duty_kw - self.hot_utility_kw
 
     @property
     def internal_pinch_shifted_c(self) -> float | None:

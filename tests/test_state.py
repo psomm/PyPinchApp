@@ -25,4 +25,6 @@ def test_incomplete_manual_rows_report_field_errors():
     state.update_delta_t_min("20")
     assert not state.can_analyze
     assert not state.analyze()
-    assert "streams[0].cp_kw_per_c" in state.issues
+    # New streams default to water: c_p is prefilled, the mass flow is missing.
+    assert "streams[0].mass_flow_kg_s" in state.issues
+    assert "streams[0].specific_heat_kj_per_kg_k" not in state.issues

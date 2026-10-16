@@ -6,18 +6,25 @@ from collections.abc import Callable
 
 import flet as ft
 
-from pypinch_app.core import CsvParseError, parse_streams_csv, validate_input
-from pypinch_app.core.models import PinchResult
+from pypinch_app.core import (
+    MEDIA,
+    CsvParseError,
+    medium_by_key,
+    parse_streams_csv,
+    validate_input,
+)
+from pypinch_app.core.models import PinchResult, StreamType
 from pypinch_app.export import ExportKind, export_result_csv
 from pypinch_app.ui.charts import (
     composite_chart,
     grand_composite_chart,
     temperature_interval_chart,
 )
-from pypinch_app.ui.state import AppState, StreamDraft
+from pypinch_app.ui.state import FIELD_MODEL_NAMES, AppState, StreamDraft
 
 MOBILE_MAX_WIDTH = 720
 TABLE_MIN_WIDTH = 900
+EDITOR_TABLE_MIN_WIDTH = 1200
 CONTENT_MAX_WIDTH = 1200
 DETAIL_VIEWS = (
     "Problem Table",
@@ -109,7 +116,41 @@ def _data_view(
     )
 
 
-def _overview(result: PinchResult) -> ft.Control:
+def _optional(value: float | None, unit: str) -> str:
+    return "—" if value is None else f"{_format(value)} {unit}"
+
+
+def _medium_label(key: str | None) -> str:
+    medium = medium_by_key(key)
+    return medium.label if medium is not None else "Benutzerdefiniert"
+
+
+def _stream_table(page: ft.Page, result: PinchResult) -> ft.Control:
+    rows = []
+    for index, item in enumerate(result.streams, start=1):
+        stream = item.stream
+        sign = "−" if stream.stream_type is StreamType.HOT else "+"
+        rows.append(
+            (
+                str(index),
+                stream.stream_type.value,
+                _medium_label(stream.medium) if stream.mass_flow_kg_s is not None else "CP direkt",
+                _optional(stream.mass_flow_kg_s, "kg/s"),
+                _optional(stream.specific_heat_kj_per_kg_k, "kJ/(kg·K)"),
+                f"{_format(stream.cp_kw_per_c)} kW/°C",
+                f"{_format(stream.supply_c)} → {_format(stream.target_c)} °C",
+                f"{sign}{_format(stream.heat_flow_kw)} kW",
+            )
+        )
+    return _data_view(
+        page,
+        ("Stream", "Typ", "Medium", "ṁ", "c_p", "CP = ṁ·c_p", "Supply → Target", "ΔḢ"),
+        rows,
+        title="Stream",
+    )
+
+
+def _overview(page: ft.Page, result: PinchResult) -> ft.Control:
     pinch = (
         f"{_format(result.hot_pinch_c)} / {_format(result.cold_pinch_c)} °C"
         if result.hot_pinch_c is not None and result.cold_pinch_c is not None
@@ -129,10 +170,20 @@ def _overview(result: PinchResult) -> ft.Control:
                     _metric("Hot / Cold Pinch", pinch),
                     _metric("ΔTmin", f"{_format(result.delta_t_min_c)} °C"),
                     _metric("Streams", str(len(result.streams))),
+                    _metric("Wärmerückgewinnung", f"{_format(result.heat_recovery_kw)} kW"),
+                    _metric("Heizbedarf ohne WRG", f"{_format(result.cold_duty_kw)} kW"),
+                    _metric("Kühlbedarf ohne WRG", f"{_format(result.hot_duty_kw)} kW"),
                 ],
                 run_spacing=12,
                 spacing=12,
             ),
+            ft.Text("Energiebilanz der Ströme", size=18, weight=ft.FontWeight.BOLD),
+            ft.Text(
+                "ΔḢ = ṁ · c_p · (T_target − T_supply) = CP · ΔT. Kalte Ströme nehmen "
+                "Wärme auf (+), heiße geben Wärme ab (−). Konstantes c_p, kein Phasenwechsel.",
+                size=12,
+            ),
+            _stream_table(page, result),
             _card(
                 ft.Column(
                     [
@@ -258,16 +309,26 @@ def main(page: ft.Page) -> None:
         _, issues = state.parsed_input()
         return next((issue.message for issue in issues if issue.field == field), None)
 
+    def stream_labels(draft: StreamDraft, labels: dict[str, ft.Text]) -> None:
+        labels["type"].value = draft.type_label
+        if draft.uses_mass_flow:
+            labels["cp"].value = _optional(draft.effective_cp, "kW/°C")
+        labels["duty"].value = _optional(draft.heat_flow_kw, "kW")
+
     def make_stream_field(
-        draft: StreamDraft, index: int, name: str, label: str, type_text: ft.Text, width: int | None
+        draft: StreamDraft,
+        index: int,
+        name: str,
+        label: str,
+        labels: dict[str, ft.Text],
+        width: int | None,
     ) -> ft.TextField:
-        model_name = {"cp": "cp_kw_per_c", "supply": "supply_c", "target": "target_c"}[name]
-        issue_key = f"streams[{index}].{model_name}"
+        issue_key = f"streams[{index}].{FIELD_MODEL_NAMES[name]}"
 
         def changed(e: ft.Event[ft.TextField]) -> None:
             state.update_stream(draft.id, name, e.control.value)
             e.control.error = None
-            type_text.value = draft.type_label
+            stream_labels(draft, labels)
             refresh_input_indicators()
 
         def blurred(e: ft.Event[ft.TextField]) -> None:
@@ -286,17 +347,76 @@ def main(page: ft.Page) -> None:
             key=f"stream-{draft.id}-{name}",
         )
 
+    def make_medium_field(draft: StreamDraft, width: int | None) -> ft.Dropdown:
+        def selected(e) -> None:
+            state.update_medium(draft.id, e.control.value)
+            render()
+
+        return ft.Dropdown(
+            label="Medium",
+            value=draft.medium,
+            options=[ft.DropdownOption(key=m.key, text=m.label) for m in MEDIA],
+            on_select=selected,
+            width=width,
+            dense=True,
+            key=f"stream-{draft.id}-medium",
+        )
+
+    def medium_hint(draft: StreamDraft) -> str:
+        medium = medium_by_key(draft.medium)
+        if medium is None:
+            return ""
+        if medium.specific_heat_kj_per_kg_k is None:
+            return medium.note
+        return f"Richtwert c_p = {medium.specific_heat_kj_per_kg_k} kJ/(kg·K), {medium.note}"
+
+    def stream_inputs(
+        draft: StreamDraft, index: int, labels: dict[str, ft.Text], width: int | None
+    ) -> tuple[list[ft.Control], list[ft.Control]]:
+        """Return (heat capacity inputs, temperature inputs) for one stream.
+
+        Table rows (fixed width) use short labels; the header carries the units.
+        """
+        names = (
+            ("ṁ", "c_p", "CP", "Supply", "Target")
+            if width
+            else ("ṁ (kg/s)", "c_p (kJ/(kg·K))", "CP (kW/°C)", "Supply (°C)", "Target (°C)")
+        )
+        if draft.uses_mass_flow:
+            flow = [
+                make_stream_field(draft, index, "mass_flow", names[0], labels, width),
+                make_stream_field(draft, index, "specific_heat", names[1], labels, width),
+            ]
+        else:
+            flow = [make_stream_field(draft, index, "cp", names[2], labels, width)]
+        temperatures = [
+            make_stream_field(draft, index, "supply", names[3], labels, width),
+            make_stream_field(draft, index, "target", names[4], labels, width),
+        ]
+        return flow, temperatures
+
     def build_streams() -> ft.Control:
         if not state.drafts:
             return _card(
                 ft.Text("Noch keine Streams. Füge einen hinzu oder importiere eine CSV-Datei.")
             )
-        if (page.width or 1024) < TABLE_MIN_WIDTH:
+        if (page.width or 1024) < EDITOR_TABLE_MIN_WIDTH:
             cards = []
             for index, draft in enumerate(state.drafts):
-                type_text = ft.Text(
-                    draft.type_label, color=ft.Colors.TEAL_700, weight=ft.FontWeight.BOLD
-                )
+                labels = {
+                    "type": ft.Text(color=ft.Colors.TEAL_700, weight=ft.FontWeight.BOLD),
+                    "cp": ft.Text(),
+                    "duty": ft.Text(),
+                }
+                stream_labels(draft, labels)
+                summary = [ft.Text("Q̇ = |ΔḢ|:", color=ft.Colors.BLUE_GREY_600), labels["duty"]]
+                if draft.uses_mass_flow:
+                    summary = [
+                        ft.Text("CP = ṁ·c_p:", color=ft.Colors.BLUE_GREY_600),
+                        labels["cp"],
+                        *summary,
+                    ]
+                flow, temperatures = stream_inputs(draft, index, labels, None)
                 cards.append(
                     _card(
                         ft.Column(
@@ -308,18 +428,14 @@ def main(page: ft.Page) -> None:
                                             weight=ft.FontWeight.BOLD,
                                             expand=True,
                                         ),
-                                        type_text,
+                                        labels["type"],
                                     ]
                                 ),
-                                make_stream_field(
-                                    draft, index, "cp", "CP (kW/°C)", type_text, None
-                                ),
-                                make_stream_field(
-                                    draft, index, "supply", "Supply (°C)", type_text, None
-                                ),
-                                make_stream_field(
-                                    draft, index, "target", "Target (°C)", type_text, None
-                                ),
+                                make_medium_field(draft, None),
+                                ft.Text(medium_hint(draft), size=12),
+                                *flow,
+                                *temperatures,
+                                ft.Row(summary, wrap=True),
                                 ft.Button(
                                     content="Löschen",
                                     icon=ft.Icons.DELETE_OUTLINE,
@@ -334,27 +450,43 @@ def main(page: ft.Page) -> None:
         rows = [
             ft.Row(
                 [
-                    ft.Text("Stream", width=80),
-                    ft.Text("CP (kW/°C)", width=140),
-                    ft.Text("Supply (°C)", width=140),
-                    ft.Text("Target (°C)", width=140),
-                    ft.Text("Typ", width=70),
-                ]
+                    ft.Text("Stream", width=50),
+                    ft.Text("Medium", width=170),
+                    ft.Text("ṁ (kg/s) · c_p (kJ/(kg·K))", width=232),
+                    ft.Text("CP (kW/°C)", width=100),
+                    ft.Text("Supply (°C)", width=110),
+                    ft.Text("Target (°C)", width=110),
+                    ft.Text("Typ", width=60),
+                    ft.Text("Q̇ (kW)", width=90),
+                ],
+                spacing=12,
             )
         ]
         for index, draft in enumerate(state.drafts):
-            type_text = ft.Text(draft.type_label, width=70, color=ft.Colors.TEAL_700)
+            labels = {
+                "type": ft.Text(width=60, color=ft.Colors.TEAL_700),
+                "cp": ft.Text(width=100),
+                "duty": ft.Text(width=90),
+            }
+            stream_labels(draft, labels)
+            flow, temperatures = stream_inputs(draft, index, labels, 110)
+            if draft.uses_mass_flow:
+                flow.append(labels["cp"])
+            else:
+                # Direct CP spans the ṁ, c_p and derived CP columns.
+                flow[0].width = 344
             rows.append(
                 ft.Row(
                     [
-                        ft.Text(str(index + 1), width=80),
-                        make_stream_field(draft, index, "cp", "CP", type_text, 140),
-                        make_stream_field(draft, index, "supply", "Supply", type_text, 140),
-                        make_stream_field(draft, index, "target", "Target", type_text, 140),
-                        type_text,
-                        ft.Button(
-                            content="Löschen",
+                        ft.Text(str(index + 1), width=50),
+                        make_medium_field(draft, 170),
+                        *flow,
+                        *temperatures,
+                        labels["type"],
+                        labels["duty"],
+                        ft.IconButton(
                             icon=ft.Icons.DELETE_OUTLINE,
+                            tooltip="Löschen",
                             on_click=lambda _e, sid=draft.id: remove_stream(sid),
                         ),
                     ],
@@ -386,6 +518,10 @@ def main(page: ft.Page) -> None:
 
     def load_example(_e=None) -> None:
         state.load_example()
+        render()
+
+    def load_milk_example(_e=None) -> None:
+        state.load_milk_example()
         render()
 
     def import_result(e: ft.FilePickerResultEvent) -> None:
@@ -440,7 +576,11 @@ def main(page: ft.Page) -> None:
             [
                 ft.Text("Prozessströme", size=24, weight=ft.FontWeight.BOLD),
                 ft.Text(
-                    "CP in kW/°C, Temperaturen in °C. Der Typ ergibt sich aus Supply und Target."
+                    "Je Strom Medium, Massenstrom ṁ und spezifische Wärmekapazität c_p angeben; "
+                    "die App rechnet CP = ṁ · c_p (kg/s · kJ/(kg·K) = kW/°C). Das Medium füllt "
+                    "einen c_p-Richtwert vor, der editierbar bleibt. Mit „CP direkt“ wird CP "
+                    "ohne ṁ eingegeben. Temperaturen in °C; der Typ ergibt sich aus Supply "
+                    "und Target."
                 ),
                 ft.Row(
                     [
@@ -461,6 +601,12 @@ def main(page: ft.Page) -> None:
                             content="Beispiel laden",
                             icon=ft.Icons.AUTO_AWESOME,
                             on_click=load_example,
+                        ),
+                        ft.Button(
+                            content="Beispiel Milch",
+                            icon=ft.Icons.LOCAL_DRINK,
+                            on_click=load_milk_example,
+                            tooltip="Milchpasteurisation nach TLK Energy: ṁ = 2 kg/s, c_p = 4",
                         ),
                     ],
                     wrap=True,
@@ -514,7 +660,7 @@ def main(page: ft.Page) -> None:
         if state.result is None:
             return _card(ft.Text("Noch keine Analyse. Gib Streams ein oder lade ein Beispiel."))
         if state.selected_section == 1:
-            return _overview(state.result)
+            return _overview(page, state.result)
         selector = ft.Dropdown(
             label="Ergebnisansicht",
             value=state.selected_detail,
@@ -583,8 +729,9 @@ def main(page: ft.Page) -> None:
         page.add(ft.SafeArea(content=content, expand=True))
         page.update()
 
-    def layout_mode() -> tuple[bool, bool]:
-        return is_mobile(), (page.width or 1024) < TABLE_MIN_WIDTH
+    def layout_mode() -> tuple[bool, bool, bool]:
+        width = page.width or 1024
+        return is_mobile(), width < TABLE_MIN_WIDTH, width < EDITOR_TABLE_MIN_WIDTH
 
     current_layout = layout_mode()
 
