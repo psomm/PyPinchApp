@@ -14,14 +14,14 @@ dependencies = [
 dev = [
     "flet[all]==1.0.1",
     "matplotlib>=3.8,<4",
-    "pillow>=11,<13",
+    "pillow>=13,<14",
     "pytest>=9.0.3,<10",
     "ruff>=0.13,<1",
 ]
 
 [tool.uv]
 # Flet depends on oauthlib; versions before 4.0.0 have CVE-2026-49265.
-constraint-dependencies = ["oauthlib>=4,<5"]
+constraint-dependencies = ["oauthlib>=4,<5", "certifi>=2026.10.19"]
 
 [tool.flet.app]
 path = "src"
