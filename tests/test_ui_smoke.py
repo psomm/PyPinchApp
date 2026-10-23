@@ -50,7 +50,7 @@ def test_mobile_example_can_be_analyzed():
         for root in page.controls
         for control in walk(root)
     )
-    find_button(page, "Beispiel laden").on_click(None)
+    find_button(page, "Beispiel 4 Ströme").on_click(None)
     assert not find_button(page, "Analyse starten").disabled
     find_button(page, "Analyse starten").on_click(None)
     assert page.navigation_bar.selected_index == 1
@@ -65,7 +65,7 @@ def test_desktop_details_construct_all_result_views():
     page = FakePage()
     page.width = 1100
     main(page)
-    find_button(page, "Beispiel laden").on_click(None)
+    find_button(page, "Beispiel 4 Ströme").on_click(None)
     find_button(page, "Analyse starten").on_click(None)
     rail = next(
         control
@@ -113,7 +113,7 @@ def test_resize_updates_editor_at_both_layout_breakpoints():
     page = FakePage()
     page.width = 1100
     main(page)
-    find_button(page, "Beispiel laden").on_click(None)
+    find_button(page, "Beispiel 4 Ströme").on_click(None)
     for width, expected_field_width, mobile in (
         (800, None, False),
         (390, None, True),

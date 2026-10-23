@@ -1,5 +1,12 @@
+import json
+from pathlib import Path
+
+import pytest
+
 from pypinch_app.core import parse_streams_csv
-from pypinch_app.ui.state import AppState
+from pypinch_app.ui.state import EXAMPLES, AppState
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def test_csv_import_is_editable_and_reanalysis_marks_old_result_stale():
@@ -28,3 +35,19 @@ def test_incomplete_manual_rows_report_field_errors():
     # New streams default to water: c_p is prefilled, the mass flow is missing.
     assert "streams[0].mass_flow_kg_s" in state.issues
     assert "streams[0].specific_heat_kj_per_kg_k" not in state.issues
+
+
+@pytest.mark.parametrize(
+    ("name", "fixture"),
+    [("Beispiel 4 Ströme", "streams"), ("Beispiel 14 Ströme", "manystreams")],
+)
+def test_builtin_examples_match_upstream_files_and_golden_results(name, fixture):
+    expected = json.loads((FIXTURES / f"{fixture}.golden.json").read_text(encoding="utf-8"))
+    assert EXAMPLES[name] == parse_streams_csv((FIXTURES / f"{fixture}.csv").read_bytes())
+    state = AppState()
+    state.load_example(name)
+    assert len(state.drafts) == len(expected["streams"])
+    assert state.analyze()
+    assert state.result.hot_utility_kw == pytest.approx(expected["hot_utility_kw"])
+    assert state.result.cold_utility_kw == pytest.approx(expected["cold_utility_kw"])
+    assert state.result.legacy_pinch_shifted_c == expected["legacy_pinch_shifted_c"]

@@ -29,7 +29,13 @@ uv run flet run --web --recursive --ignore-dirs .flet,__pycache__ --port 8550 sr
 ```
 
 Im Browser `http://localhost:8550/` öffnen und das Terminal geöffnet lassen.
-Im Editor „Beispiel laden“ wählen, dann „Analyse starten“.
+Im Editor ein Beispiel wählen, dann „Analyse starten“:
+
+- „Beispiel 4 Ströme“ und „Beispiel 14 Ströme“ sind die Beispiele des
+  Originalprojekts ([`example/streams`](https://github.com/anicusan/PyPinch/tree/master/example/streams):
+  `streams.csv`, `manystreams.csv`), jeweils mit ΔTmin = 20 °C und direkt
+  eingegebenem CP. Erwartet: QH,min / QC,min = 50 / 85 kW bzw. 212 / 753 kW.
+- „Beispiel Milch“ ist die Milchpasteurisation mit ṁ und c_p (siehe unten).
 Der Entwicklungsserver lädt Python-Änderungen in
 Untermodulen neu. Das Ignorieren von `.flet` verhindert eine Neustartschleife
 durch generierte Flet-Dateien.

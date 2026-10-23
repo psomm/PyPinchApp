@@ -19,11 +19,30 @@ from pypinch_app.core import (
     validate_input,
 )
 
+# Upstream PyPinch example/streams/streams.csv.
 EXAMPLE_STREAMS = (
     ProcessStream(1, 350, 120),
     ProcessStream(3, 260, 150),
     ProcessStream(2, 65, 310),
     ProcessStream(0.5, 100, 170),
+)
+
+# Upstream PyPinch example/streams/manystreams.csv.
+MANY_EXAMPLE_STREAMS = (
+    ProcessStream(1, 280, 125),
+    ProcessStream(2.7, 230, 90),
+    ProcessStream(2, 70, 275),
+    ProcessStream(0.8, 75, 215),
+    ProcessStream(1.5, 320, 80),
+    ProcessStream(2.2, 120, 240),
+    ProcessStream(2.8, 300, 100),
+    ProcessStream(1.1, 60, 250),
+    ProcessStream(0.9, 150, 380),
+    ProcessStream(1.6, 200, 420),
+    ProcessStream(2.9, 360, 200),
+    ProcessStream(1.4, 250, 420),
+    ProcessStream(1.6, 400, 200),
+    ProcessStream(0.8, 250, 130),
 )
 
 # TLK Energy, "Pinch-Analyse": raw milk 15 → 95 °C, then cooled 95 → 5 °C,
@@ -32,6 +51,13 @@ MILK_EXAMPLE_STREAMS = (
     ProcessStream.from_mass_flow(2, 4, 15, 95, "milk"),
     ProcessStream.from_mass_flow(2, 4, 95, 5, "milk"),
 )
+
+# Editor button label → example input.
+EXAMPLES = {
+    "Beispiel 4 Ströme": AnalysisInput(EXAMPLE_STREAMS, 20),
+    "Beispiel 14 Ströme": AnalysisInput(MANY_EXAMPLE_STREAMS, 20),
+    "Beispiel Milch": AnalysisInput(MILK_EXAMPLE_STREAMS, 20),
+}
 
 DEFAULT_MEDIUM = "water"
 
@@ -189,11 +215,8 @@ class AppState:
         self.issues.clear()
         self.status = ""
 
-    def load_example(self) -> None:
-        self.import_data(AnalysisInput(EXAMPLE_STREAMS, 20))
-
-    def load_milk_example(self) -> None:
-        self.import_data(AnalysisInput(MILK_EXAMPLE_STREAMS, 20))
+    def load_example(self, name: str = "Beispiel 4 Ströme") -> None:
+        self.import_data(EXAMPLES[name])
 
     def import_data(self, data: AnalysisInput) -> None:
         self.drafts = []

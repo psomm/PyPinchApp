@@ -33,6 +33,15 @@ DETAIL_VIEWS = (
     "Grand Composite Curve",
     "Temperature Intervals",
 )
+EXAMPLE_BUTTONS = (
+    ("Beispiel 4 Ströme", ft.Icons.AUTO_AWESOME, "Original-PyPinch: streams.csv"),
+    ("Beispiel 14 Ströme", ft.Icons.AUTO_AWESOME_MOTION, "Original-PyPinch: manystreams.csv"),
+    (
+        "Beispiel Milch",
+        ft.Icons.LOCAL_DRINK,
+        "Milchpasteurisation nach TLK Energy: ṁ = 2 kg/s, c_p = 4",
+    ),
+)
 EXPORTS = (
     ("Problem Table", ExportKind.PROBLEM_TABLE),
     ("Heat Cascade", ExportKind.HEAT_CASCADE),
@@ -516,12 +525,8 @@ def main(page: ft.Page) -> None:
         state.analyze()
         render()
 
-    def load_example(_e=None) -> None:
-        state.load_example()
-        render()
-
-    def load_milk_example(_e=None) -> None:
-        state.load_milk_example()
+    def load_example(name: str) -> None:
+        state.load_example(name)
         render()
 
     def import_result(e: ft.FilePickerResultEvent) -> None:
@@ -597,16 +602,14 @@ def main(page: ft.Page) -> None:
                                 with_data=True,
                             ),
                         ),
-                        ft.Button(
-                            content="Beispiel laden",
-                            icon=ft.Icons.AUTO_AWESOME,
-                            on_click=load_example,
-                        ),
-                        ft.Button(
-                            content="Beispiel Milch",
-                            icon=ft.Icons.LOCAL_DRINK,
-                            on_click=load_milk_example,
-                            tooltip="Milchpasteurisation nach TLK Energy: ṁ = 2 kg/s, c_p = 4",
+                        *(
+                            ft.Button(
+                                content=name,
+                                icon=icon,
+                                tooltip=tooltip,
+                                on_click=lambda _e, name=name: load_example(name),
+                            )
+                            for name, icon, tooltip in EXAMPLE_BUTTONS
                         ),
                     ],
                     wrap=True,

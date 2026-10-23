@@ -142,9 +142,9 @@ try {
   await cdp("Page.reload", { ignoreCache: true });
   await setViewport(1440, 1000);
   await evaluate(`document.querySelector("flt-semantics-placeholder")?.click()`);
-  await waitForText("Beispiel laden");
+  await waitForText("Beispiel 4 Ströme");
 
-  await clickText("Beispiel laden");
+  await clickText("Beispiel 4 Ströme");
   await waitForText("4 Streams geladen");
   await screenshot("desktop-input.png");
 

@@ -59,7 +59,7 @@ def test_mass_flow_csv_uses_medium_reference_cp_when_cell_empty():
 
 def test_editor_milk_example_and_medium_switch():
     state = AppState()
-    state.load_milk_example()
+    state.load_example("Beispiel Milch")
     assert [d.medium for d in state.drafts] == ["milk", "milk"]
     assert state.drafts[0].effective_cp == 8
     assert state.drafts[0].heat_flow_kw == 640
