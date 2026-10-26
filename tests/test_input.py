@@ -10,6 +10,7 @@ from pypinch_app.core import (
     ProcessStream,
     StreamType,
     parse_streams_csv,
+    phase_change_warnings,
     solve_pinch,
     validate_input,
 )
@@ -62,3 +63,27 @@ def test_duplicate_streams_are_allowed():
     streams = (ProcessStream(2, 180, 40), ProcessStream(2, 180, 40))
     assert not validate_input(AnalysisInput(streams, 20))
     assert solve_pinch(streams, 20).cold_utility_kw > 0
+
+
+def test_old_steam_label_still_imports():
+    parsed = parse_streams_csv(
+        "Tmin,10\nMEDIUM,MDOT,CPSPEC,TSUPPLY,TTARGET\nWasserdampf,1,,150,110\nWasser,1,,20,90\n"
+    )
+    assert parsed.streams[0].medium == "steam"
+    assert parsed.streams[0].specific_heat_kj_per_kg_k == 2.03
+
+
+def test_steam_below_saturation_warns_about_missing_latent_heat():
+    streams = (
+        ProcessStream.from_mass_flow(1, 2.03, 150, 60, "steam"),
+        ProcessStream.from_mass_flow(1, 2.03, 150, 100, "steam"),
+        ProcessStream.from_mass_flow(1, 2.03, 80, 120, "steam"),
+        ProcessStream.from_mass_flow(1, 4.19, 150, 60, "water"),
+        ProcessStream(2257, 100.5, 99.5),
+    )
+    assert [issue.field for issue in phase_change_warnings(streams)] == [
+        "streams[0].medium",
+        "streams[2].medium",
+    ]
+    # Warnings never block the calculation.
+    assert not validate_input(AnalysisInput(streams, 10))

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 
-from .models import AnalysisInput
+from .media import medium_by_key
+from .models import AnalysisInput, ProcessStream
 
 
 @dataclass(frozen=True)
@@ -69,3 +71,26 @@ def validate_input(data: AnalysisInput) -> tuple[ValidationIssue, ...]:
                     )
                 )
     return tuple(issues)
+
+
+def phase_change_warnings(streams: Sequence[ProcessStream]) -> tuple[ValidationIssue, ...]:
+    """Non-blocking hints for streams whose reference c_p misses a latent heat.
+
+    A stream that crosses the medium's saturation temperature condenses or
+    evaporates, but CP·ΔT only counts sensible heat.
+    """
+    warnings: list[ValidationIssue] = []
+    for index, stream in enumerate(streams):
+        medium = medium_by_key(stream.medium)
+        if medium is None or medium.saturation_c is None:
+            continue
+        if min(stream.supply_c, stream.target_c) < medium.saturation_c:
+            warnings.append(
+                ValidationIssue(
+                    f"streams[{index}].medium",
+                    f"Stream {index + 1} ({medium.label}) unterschreitet "
+                    f"{medium.saturation_c:g} °C: Die Kondensations- bzw. Verdampfungswärme "
+                    "fehlt in ΔḢ.",
+                )
+            )
+    return tuple(warnings)

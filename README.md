@@ -82,6 +82,25 @@ der Composite Curves wird ΔḢ aufgetragen, die Steigung eines Abschnitts ist 1
 Ein Phasenwechsel (CP → ∞, waagerechter Abschnitt) ist mit konstantem c_p nicht
 abbildbar und muss als eigener Strom mit sehr großem CP genähert werden.
 
+### Dampf mit Kondensation
+
+Das Medium „Wasserdampf (überhitzt)“ enthält nur die fühlbare Wärme des
+überhitzten Dampfs. Unterschreitet ein Dampfstrom 100 °C, fehlt die
+Kondensations- bzw. Verdampfungswärme; die App zeigt dann einen Hinweis.
+Ein kondensierender Dampfstrom wird deshalb als drei Ströme eingegeben:
+
+| Abschnitt | Medium | Supply → Target | c_p bzw. CP |
+|---|---|---|---|
+| Enthitzung | Wasserdampf (überhitzt) | T_ein → T_s + 0,5 °C | 2,03 kJ/(kg·K) |
+| Kondensation | CP direkt | T_s + 0,5 °C → T_s − 0,5 °C | CP = ṁ · r / 1 K |
+| Unterkühlung | Wasser | T_s − 0,5 °C → T_aus | 4,19 kJ/(kg·K) |
+
+Sättigungstemperatur T_s und Verdampfungsenthalpie r hängen vom Druck ab:
+1 bar: 99,6 °C, 2257 kJ/kg; 3 bar: 133,5 °C, 2163 kJ/kg; 10 bar: 179,9 °C,
+2015 kJ/kg. Beispiel: 1 kg/s Dampf von 150 °C auf 60 °C gibt 2523 kW ab, als
+einzelner Wasserdampf-Strom gerechnet nur 183 kW. Die Composite Curve zeigt
+mit der Aufteilung den erwarteten fast waagerechten Kondensationsabschnitt.
+
 Die Auswahl des Mediums füllt einen c_p-Richtwert vor. Der Wert bleibt editierbar,
 weil c_p von Temperatur, Druck und Zusammensetzung abhängt:
 
@@ -91,7 +110,7 @@ weil c_p von Temperatur, Druck und Zusammensetzung abhängt:
 | Milch | 3,93 | Vollmilch, flüssig |
 | Glykol-Wasser 30 % | 3,70 | Ethylenglykol, 20 °C |
 | Thermoöl | 2,20 | Mineralöl, 100–250 °C |
-| Wasserdampf | 2,03 | überhitzt, ~1 bar |
+| Wasserdampf (überhitzt) | 2,03 | überhitzt, ~1 bar, ohne Kondensation |
 | Luft | 1,006 | trocken, ~1 bar |
 | Rauchgas | 1,10 | Erdgasfeuerung |
 
@@ -150,7 +169,8 @@ Milch,2,4,95,5
 ```
 
 `MDOT` ist in kg/s, `CPSPEC` in kJ/(kg·K). `MEDIUM` akzeptiert die Namen aus
-der Tabelle oben oder deren Schlüssel (z. B. `water`). Bei leerem `CPSPEC`
+der Tabelle oben oder deren Schlüssel (z. B. `water`); `Wasserdampf`
+steht weiterhin für `steam`. Bei leerem `CPSPEC`
 wird der Richtwert des Mediums verwendet. `MEDIUM` oder `CPSPEC` darf als
 Spalte fehlen, aber nicht beide.
 

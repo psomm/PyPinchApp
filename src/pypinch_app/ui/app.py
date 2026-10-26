@@ -11,6 +11,7 @@ from pypinch_app.core import (
     CsvParseError,
     medium_by_key,
     parse_streams_csv,
+    phase_change_warnings,
     validate_input,
 )
 from pypinch_app.core.models import PinchResult, StreamType
@@ -41,6 +42,11 @@ EXAMPLE_BUTTONS = (
         ft.Icons.LOCAL_DRINK,
         "Milchpasteurisation nach TLK Energy: ṁ = 2 kg/s, c_p = 4",
     ),
+)
+PHASE_CHANGE_WORKAROUND = (
+    "Dampf als drei Ströme eingeben: Enthitzung (Wasserdampf) bis T_s + 0,5 °C, "
+    "Kondensation als „CP direkt“ mit CP = ṁ · r / 1 K über T_s ± 0,5 °C "
+    "(1 bar: T_s = 100 °C, r = 2257 kJ/kg) und Kondensat (Wasser) ab T_s − 0,5 °C."
 )
 EXPORTS = (
     ("Problem Table", ExportKind.PROBLEM_TABLE),
@@ -301,15 +307,25 @@ def main(page: ft.Page) -> None:
     page.theme = ft.Theme(color_scheme_seed=ft.Colors.TEAL_600)
     state = AppState()
     stale_notice = ft.Text(visible=False, color=ft.Colors.AMBER_900)
+    phase_notice = ft.Text(visible=False, color=ft.Colors.AMBER_900)
     status_text = ft.Text(size=13)
     analysis_button = ft.Button(content="Analyse starten", icon=ft.Icons.ANALYTICS)
 
     def is_mobile() -> bool:
         return (page.width or 1024) <= MOBILE_MAX_WIDTH
 
+    def refresh_phase_notice() -> None:
+        data, _ = state.parsed_input()
+        warnings = phase_change_warnings(data.streams) if data is not None else ()
+        phase_notice.visible = bool(warnings)
+        phase_notice.value = "\n".join(
+            [*(warning.message for warning in warnings), PHASE_CHANGE_WORKAROUND]
+        )
+
     def refresh_input_indicators() -> None:
         stale_notice.visible = state.result_stale
         stale_notice.value = "Eingaben geändert – Ergebnis veraltet. Bitte erneut analysieren."
+        refresh_phase_notice()
         status_text.value = state.status
         analysis_button.disabled = not state.can_analyze
         page.update()
@@ -585,7 +601,7 @@ def main(page: ft.Page) -> None:
                     "die App rechnet CP = ṁ · c_p (kg/s · kJ/(kg·K) = kW/°C). Das Medium füllt "
                     "einen c_p-Richtwert vor, der editierbar bleibt. Mit „CP direkt“ wird CP "
                     "ohne ṁ eingegeben. Temperaturen in °C; der Typ ergibt sich aus Supply "
-                    "und Target."
+                    "und Target. Phasenwechsel sind nicht enthalten. " + PHASE_CHANGE_WORKAROUND
                 ),
                 ft.Row(
                     [
@@ -701,6 +717,7 @@ def main(page: ft.Page) -> None:
         analysis_button.disabled = not state.can_analyze
         stale_notice.visible = state.result_stale
         stale_notice.value = "Eingaben geändert – Ergebnis veraltet. Bitte erneut analysieren."
+        refresh_phase_notice()
         status_text.value = state.status
         nav = navigation(mobile)
         body = ft.Column(
@@ -713,6 +730,7 @@ def main(page: ft.Page) -> None:
                     ],
                 ),
                 stale_notice,
+                phase_notice,
                 status_text,
                 build_content(),
                 ft.Text(

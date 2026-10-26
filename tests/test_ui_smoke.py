@@ -177,3 +177,26 @@ def test_metrics_preserve_small_values_and_bound_large_number_width():
     assert _format(1e-7) == "1e-07"
     assert _format(1e308) == "1e+308"
     assert _format(0) == "0"
+
+
+def test_condensing_steam_shows_phase_change_notice():
+    page = FakePage()
+    main(page)
+    picker = page.services[0]
+    picker.on_result(
+        SimpleNamespace(
+            files=[
+                SimpleNamespace(
+                    bytes=b"Tmin,10\nMEDIUM,MDOT,CPSPEC,TSUPPLY,TTARGET\n"
+                    b"steam,1,,150,60\nwater,5,,20,90\n"
+                )
+            ]
+        )
+    )
+    notices = [
+        c.value
+        for root in page.controls
+        for c in walk(root)
+        if isinstance(c, ft.Text) and c.visible and "Kondensations" in (c.value or "")
+    ]
+    assert len(notices) == 1 and notices[0].startswith("Stream 1 (Wasserdampf (überhitzt))")

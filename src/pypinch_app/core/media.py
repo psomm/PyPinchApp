@@ -16,6 +16,9 @@ class Medium:
     label: str
     specific_heat_kj_per_kg_k: float | None
     note: str = ""
+    # Below this temperature the medium changes phase, which a constant c_p ignores.
+    saturation_c: float | None = None
+    aliases: tuple[str, ...] = ()
 
 
 CP_DIRECT = "cp_direct"
@@ -26,7 +29,14 @@ MEDIA = (
     Medium("milk", "Milch", 3.93, "Vollmilch, flüssig"),
     Medium("glycol_30", "Glykol-Wasser 30 %", 3.70, "Ethylenglykol, 20 °C"),
     Medium("thermal_oil", "Thermoöl", 2.20, "Mineralöl, 100–250 °C"),
-    Medium("steam", "Wasserdampf", 2.03, "überhitzt, ~1 bar"),
+    Medium(
+        "steam",
+        "Wasserdampf (überhitzt)",
+        2.03,
+        "überhitzt, ~1 bar, ohne Kondensation",
+        saturation_c=100.0,
+        aliases=("Wasserdampf",),
+    ),
     Medium("air", "Luft", 1.006, "trocken, ~1 bar"),
     Medium("flue_gas", "Rauchgas", 1.10, "Erdgasfeuerung"),
     Medium(CUSTOM, "Benutzerdefiniert", None, "c_p manuell eingeben"),
@@ -41,9 +51,13 @@ def medium_by_key(key: str | None) -> Medium | None:
 
 
 def find_medium(name: str) -> Medium | None:
-    """Match a CSV value against medium keys or German labels, ignoring case."""
+    """Match a CSV value against medium keys, German labels, or aliases, ignoring case."""
     wanted = name.strip().casefold()
     return next(
-        (m for m in MEDIA if wanted in (m.key.casefold(), m.label.casefold())),
+        (
+            m
+            for m in MEDIA
+            if wanted in (m.key.casefold(), m.label.casefold(), *map(str.casefold, m.aliases))
+        ),
         None,
     )
